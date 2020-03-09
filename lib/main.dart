@@ -1,9 +1,21 @@
 import 'dart:async';
 
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:http/http.dart' as http;
+import 'login.dart';
 
 void main() => runApp(MyApp());
+
+Future<String> fetchText() async {
+  var url = 'https://lt-nlgservice.herokuapp.com/rest/english/realise?subject=dog&verb=eat&object=watter&tense=past&progressive=progressive&festesmerkmal=tense,progressive';
+  var response = await http.get(url,);
+  print('Response status: ${response.statusCode}');
+  print('Response body: ${response.body}');
+
+  return response.body;
+}
 
 class MyApp extends StatefulWidget {
   @override
@@ -23,6 +35,11 @@ class _MyAppState extends State<MyApp> {
   TextEditingController _ttsController = TextEditingController();
 
   String _newVoiceText;
+
+  String displayText = 'Please Press Play!';
+
+  String _prevText = '';
+  String entireText = '';
 
   TtsState ttsState = TtsState.stopped;
 
@@ -75,11 +92,16 @@ class _MyAppState extends State<MyApp> {
 
     if (_newVoiceText != null) {
       if (_newVoiceText.isNotEmpty) {
-          var result = await flutterTts.speak(word);
+        setState(() {
+          displayText = word;
+        });
+        var result = await flutterTts.speak(word);
 
-          if (result == 1) setState(() => ttsState = TtsState.playing);
-        }
-
+        if (result == 1) setState(() => ttsState = TtsState.playing);
+        setState(() {
+          _prevText = displayText;
+        });
+      }
     }
   }
 
@@ -109,13 +131,15 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
         home: Scaffold(
             appBar: AppBar(
-              title: Text('Flutter TTS'),
+              title: Text('Minerva', style: TextStyle(fontWeight: FontWeight.bold),),
+              backgroundColor: Colors.pink[100],
+              centerTitle: true,
+              elevation: 0,
             ),
             body: SingleChildScrollView(
                 scrollDirection: Axis.vertical,
@@ -132,7 +156,6 @@ class _MyAppState extends State<MyApp> {
       padding: EdgeInsets.only(top: 25.0, left: 25.0, right: 25.0),
       child: TextField(
         controller: _ttsController,
-
       ));
 
   Widget _btnSection() => Container(
@@ -165,20 +188,20 @@ class _MyAppState extends State<MyApp> {
               color: color,
               splashColor: splashColor,
               onPressed: () async {
-
                 setState(() {
                   _newVoiceText = _ttsController.text;
                 });
                 print(_newVoiceText);
-                for(int i=0; i<_newVoiceText.split(" ").length; i++){
+                for (int i = 0; i < _newVoiceText.split(" ").length; i++) {
                   print(_newVoiceText.split(" ")[i]);
-                  await Future.delayed(Duration(seconds: 1), (){
-
+                  await Future.delayed(Duration(milliseconds: 500), () {
                     func(_newVoiceText.split(" ")[i]);
-
                   });
+                  if(i==_newVoiceText.split(" ").length-1){
+                   entireText = _newVoiceText;
+                  }
                 }
-    }),
+              }),
           Container(
               margin: const EdgeInsets.only(top: 8.0),
               child: Text(label,
@@ -186,12 +209,29 @@ class _MyAppState extends State<MyApp> {
                       fontSize: 12.0,
                       fontWeight: FontWeight.w400,
                       color: color)))
-          ]);
+        ]);
   }
 
   Widget _buildSliders() {
     return Column(
-      children: [_volume(), _pitch(), _rate()],
+      children: [
+        _volume(), _pitch(), _rate(), _slider(),
+        FlatButton(
+          color: Colors.grey[200],
+          child: Text('Get some text', style: TextStyle(fontSize: 20),),
+          padding: EdgeInsets.all(20),
+          onPressed: (){
+            fetchText().then((t){
+              print(t);
+              setState(() {
+
+                _newVoiceText = t;
+              });
+              print('ss $_newVoiceText');
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -201,6 +241,7 @@ class _MyAppState extends State<MyApp> {
         onChanged: (newVolume) {
           setState(() => volume = newVolume);
         },
+        activeColor: Colors.pink[100],
         min: 0.0,
         max: 1.0,
         divisions: 10,
@@ -217,7 +258,7 @@ class _MyAppState extends State<MyApp> {
       max: 2.0,
       divisions: 15,
       label: "Pitch: $pitch",
-      activeColor: Colors.red,
+      activeColor: Colors.grey[400],
     );
   }
 
@@ -231,7 +272,51 @@ class _MyAppState extends State<MyApp> {
       max: 1.0,
       divisions: 10,
       label: "Rate: $rate",
-      activeColor: Colors.green,
+      activeColor: Colors.black38,
     );
+  }
+
+  CarouselSlider _slider() {
+    if(entireText==''){
+      return  CarouselSlider(
+          height: 200.0,
+          items: [_prevText, displayText].map((i) {
+            return Builder(
+              builder: (BuildContext context) {
+                return Container(
+                  width: MediaQuery.of(context).size.width/2,
+                  margin: EdgeInsets.symmetric(horizontal: 5.0),
+                  decoration: BoxDecoration(),
+                  child: Center(
+                    child: Text(
+                      '$i',
+                      style: TextStyle(fontSize: 46.0, fontWeight: FontWeight.bold,color: Colors.grey[700]),
+                    ),
+                  ),
+                );
+              },
+            );
+          }).toList());
+    } else {
+      return CarouselSlider(
+          height: 200.0,
+          viewportFraction: 0.4,
+          items: _newVoiceText.split(" ").map((i) {
+        return Builder(
+          builder: (BuildContext context) {
+            return Container(
+              margin: EdgeInsets.symmetric(horizontal: 5.0),
+              decoration: BoxDecoration(),
+              child: Center(
+                child: Text(
+                  '$i',
+                  style: TextStyle(fontSize: 34.0, fontWeight: FontWeight.bold,color: Colors.grey[700]),
+                ),
+              ),
+            );
+          },
+        );
+      }).toList());
+    }
   }
 }
